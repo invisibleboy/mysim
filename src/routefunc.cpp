@@ -707,9 +707,12 @@ void dim_order_mesh( const Router *r, const Flit *f, int in_channel, OutputSet *
 
   srand(time(NULL));
   int numm = (rand() % 101);
- // if ( numm > 51)
-	  outputs->AddRange( out_port, vcBegin, vcEnd );
- // else	  outputs->AddRange( out_port2, vcBegin, vcEnd );
+//  if ( numm > 51)
+	  outputs->AddRange( out_port, vcBegin, vcEnd ,1);
+	  if (out_port!=out_port2)
+		  outputs->AddRange( out_port2, vcBegin, vcEnd );
+
+  //else	  outputs->AddRange( out_port, vcBegin, vcEnd );
 
 }
 
