@@ -59,7 +59,7 @@ void KNCube::_ComputeSize( const Configuration &config )
 
   gK = _k; gN = _n;
   _size     = powi( _k, _n );
-  _channels = 2*_n*_size;
+  _channels = 2*2*_n*_size;
 
   _nodes = _size;
 }
@@ -72,11 +72,14 @@ void KNCube::_BuildNet( const Configuration &config )
   int left_node;
   int right_node;
 
-  int right_input;
-  int left_input;
-
-  int right_output;
-  int left_output;
+  int right_input0;
+  int left_input0;
+  int right_input1;
+  int left_input1;
+  int right_output0;
+  int left_output0;
+  int right_output1;
+  int left_output1;
 
   ostringstream router_name;
 
@@ -95,7 +98,7 @@ void KNCube::_BuildNet( const Configuration &config )
     }
 
     _routers[node] = Router::NewRouter( config, this, router_name.str( ), 
-					node, 2*_n + 1, 2*_n + 1 );
+					node, 2*2*_n + 1, 2*2*_n + 1 );
     _timed_modules.push_back(_routers[node]);
 
     router_name.str("");
@@ -119,44 +122,74 @@ void KNCube::_BuildNet( const Configuration &config )
       int latency = _mesh ? 1 : 2 ;
 
       //get the input channel number
-      right_input = _LeftChannel( right_node, dim );
-      left_input  = _RightChannel( left_node, dim );
-
+      right_input0 = _LeftChannel0( right_node, dim );
+      right_input1 = _LeftChannel1( right_node, dim );
+      left_input0  = _RightChannel0( left_node, dim );
+      left_input1  = _RightChannel1( left_node, dim );
+      cout<<"right input0="<<right_input0<<"\n";
+      cout<<"left input0="<<left_input0<<"\n";
+      cout<<"right input1="<<right_input1<<"\n";
+      cout<<"left input1="<<left_input1<<"\n";
       //add the input channel
-      _routers[node]->AddInputChannel( _chan[right_input], _chan_cred[right_input] );
-      _routers[node]->AddInputChannel( _chan[left_input], _chan_cred[left_input] );
-
+      _routers[node]->AddInputChannel( _chan[right_input0], _chan_cred[right_input0] );
+      _routers[node]->AddInputChannel( _chan[right_input1], _chan_cred[right_input1] );
+      _routers[node]->AddInputChannel( _chan[left_input0], _chan_cred[left_input0] );
+      _routers[node]->AddInputChannel( _chan[left_input1], _chan_cred[left_input1] );
       //set input channel latency
       if(use_noc_latency){
-	_chan[right_input]->SetLatency( latency );
-	_chan[left_input]->SetLatency( latency );
-	_chan_cred[right_input]->SetLatency( latency );
-	_chan_cred[left_input]->SetLatency( latency );
+	_chan[right_input0]->SetLatency( latency );
+	_chan[left_input0]->SetLatency( latency );
+	_chan_cred[right_input0]->SetLatency( latency );
+	_chan_cred[left_input0]->SetLatency( latency );
+	_chan[right_input1]->SetLatency( latency );
+	_chan[left_input1]->SetLatency( latency );
+	_chan_cred[right_input1]->SetLatency( latency );
+	_chan_cred[left_input1]->SetLatency( latency );
       } else {
-	_chan[left_input]->SetLatency( 1 );
-	_chan_cred[right_input]->SetLatency( 1 );
-	_chan_cred[left_input]->SetLatency( 1 );
-	_chan[right_input]->SetLatency( 1 );
+	_chan[left_input0]->SetLatency( 1 );
+	_chan_cred[right_input0]->SetLatency( 1 );
+	_chan_cred[left_input0]->SetLatency( 1 );
+	_chan[right_input0]->SetLatency( 1 );
+	_chan[left_input1]->SetLatency( 1 );
+	_chan_cred[right_input1]->SetLatency( 1 );
+	_chan_cred[left_input1]->SetLatency( 1 );
+	_chan[right_input1]->SetLatency( 1 );
       }
       //get the output channel number
-      right_output = _RightChannel( node, dim );
-      left_output  = _LeftChannel( node, dim );
-      
+      right_output0 = _RightChannel0( node, dim );
+      left_output0  = _LeftChannel0( node, dim );
+      right_output1 = _RightChannel1( node, dim );
+      left_output1  = _LeftChannel1( node, dim );
+      cout<<"right output0="<<right_output0<<"\n";
+      cout<<"left output0="<<left_output0<<"\n";
+      cout<<"right output1="<<right_output1<<"\n";
+      cout<<"left output1="<<left_output1<<"\n";
+      cout<<"node="<<node<<"\n";
+      cout<<"dimension="<<dim<<"\n\n";
       //add the output channel
-      _routers[node]->AddOutputChannel( _chan[right_output], _chan_cred[right_output] );
-      _routers[node]->AddOutputChannel( _chan[left_output], _chan_cred[left_output] );
-
+      _routers[node]->AddOutputChannel( _chan[right_output0], _chan_cred[right_output0] );
+      _routers[node]->AddOutputChannel( _chan[right_output1], _chan_cred[right_output1] );
+      _routers[node]->AddOutputChannel( _chan[left_output0], _chan_cred[left_output0] );
+      _routers[node]->AddOutputChannel( _chan[left_output1], _chan_cred[left_output1] );
       //set output channel latency
       if(use_noc_latency){
-	_chan[right_output]->SetLatency( latency );
-	_chan[left_output]->SetLatency( latency );
-	_chan_cred[right_output]->SetLatency( latency );
-	_chan_cred[left_output]->SetLatency( latency );
+	_chan[right_output0]->SetLatency( latency );
+	_chan[left_output0]->SetLatency( latency );
+	_chan_cred[right_output0]->SetLatency( latency );
+	_chan_cred[left_output0]->SetLatency( latency );
+	_chan[right_output1]->SetLatency( latency );
+	_chan[left_output1]->SetLatency( latency );
+	_chan_cred[right_output1]->SetLatency( latency );
+	_chan_cred[left_output1]->SetLatency( latency );
       } else {
-	_chan[right_output]->SetLatency( 1 );
-	_chan[left_output]->SetLatency( 1 );
-	_chan_cred[right_output]->SetLatency( 1 );
-	_chan_cred[left_output]->SetLatency( 1 );
+	_chan[right_output0]->SetLatency( 1 );
+	_chan[left_output0]->SetLatency( 1 );
+	_chan_cred[right_output0]->SetLatency( 1 );
+	_chan_cred[left_output0]->SetLatency( 1 );
+	_chan[right_output1]->SetLatency( 1 );
+	_chan[left_output1]->SetLatency( 1 );
+	_chan_cred[right_output1]->SetLatency( 1 );
+	_chan_cred[left_output1]->SetLatency( 1 );
 
       }
     }
@@ -168,25 +201,41 @@ void KNCube::_BuildNet( const Configuration &config )
   }
 }
 
-int KNCube::_LeftChannel( int node, int dim )
+int KNCube::_LeftChannel0( int node, int dim )
 {
   // The base channel for a node is 2*_n*node
-  int base = 2*_n*node;
+  int base = 2*2*_n*node;
   // The offset for a left channel is 2*dim + 1
-  int off  = 2*dim + 1;
+  int off  = 2*2*dim+2 ;
 
   return ( base + off );
 }
-
-int KNCube::_RightChannel( int node, int dim )
+int KNCube::_LeftChannel1( int node, int dim )
 {
   // The base channel for a node is 2*_n*node
-  int base = 2*_n*node;
-  // The offset for a right channel is 2*dim 
-  int off  = 2*dim;
+  int base = 2*2*_n*node;
+  // The offset for a left channel is 2*dim + 1
+  int off  = 2*2*dim + 3;
+
   return ( base + off );
 }
 
+int KNCube::_RightChannel0( int node, int dim )
+{
+  // The base channel for a node is 2*_n*node
+  int base = 2*2*_n*node;
+  // The offset for a right channel is 2*dim
+  int off  = 2*2*dim;
+  return ( base + off );
+}
+int KNCube::_RightChannel1( int node, int dim )
+{
+  // The base channel for a node is 2*_n*node
+  int base = 2*2*_n*node;
+  // The offset for a right channel is 2*dim 
+  int off  = 2*2*dim+1;
+  return ( base + off );
+}
 int KNCube::_LeftNode( int node, int dim )
 {
   int k_to_dim = powi( _k, dim );

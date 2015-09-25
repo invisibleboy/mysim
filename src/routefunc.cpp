@@ -39,6 +39,7 @@
 #include <map>
 #include <cstdlib>
 #include <cassert>
+#include <ctime>
 
 #include "booksim.hpp"
 #include "routefunc.hpp"
@@ -536,11 +537,10 @@ void xy_yx_mesh( const Router *r, const Flit *f,
 //=============================================================
 
 //=============================================================
-
-int dor_next_mesh( int cur, int dest, bool descending )
+int dor_next_mesh2( int cur, int dest, bool descending )
 {
   if ( cur == dest ) {
-    return 2*gN;  // Eject
+    return 2*2*gN;  // Eject
   }
 
   int dim_left;
@@ -562,9 +562,40 @@ int dor_next_mesh( int cur, int dest, bool descending )
   }
 
   if ( cur < dest ) {
-    return 2*dim_left;     // Right
+    return 2*2*dim_left+1;     // Right
   } else {
-    return 2*dim_left + 1; // Left
+    return 2*2*dim_left + 3; // Left
+  }
+}
+
+int dor_next_mesh( int cur, int dest, bool descending )
+{
+  if ( cur == dest ) {
+    return 2*2*gN;  // Eject
+  }
+
+  int dim_left;
+
+  if(descending) {
+    for ( dim_left = ( gN - 1 ); dim_left > 0; --dim_left ) {
+      if ( ( cur * gK / gNodes ) != ( dest * gK / gNodes ) ) { break; }
+      cur = (cur * gK) % gNodes; dest = (dest * gK) % gNodes;
+    }
+    cur = (cur * gK) / gNodes;
+    dest = (dest * gK) / gNodes;
+  } else {
+    for ( dim_left = 0; dim_left < ( gN - 1 ); ++dim_left ) {
+      if ( ( cur % gK ) != ( dest % gK ) ) { break; }
+      cur /= gK; dest /= gK;
+    }
+    cur %= gK;
+    dest %= gK;
+  }
+
+  if ( cur < dest ) {
+    return 2*2*dim_left;     // Right
+  } else {
+    return 2*2*dim_left + 2; // Left
   }
 }
 
@@ -643,7 +674,7 @@ void dor_next_torus( int cur, int dest, int in_port,
 void dim_order_mesh( const Router *r, const Flit *f, int in_channel, OutputSet *outputs, bool inject )
 {
   int out_port = inject ? -1 : dor_next_mesh( r->GetID( ), f->dest );
-  
+  int out_port2 = inject ? -1 : dor_next_mesh2( r->GetID( ), f->dest ,false );
   int vcBegin = 0, vcEnd = gNumVCs-1;
   if ( f->type == Flit::READ_REQUEST ) {
     vcBegin = gReadReqBeginVC;
@@ -674,7 +705,12 @@ void dim_order_mesh( const Router *r, const Flit *f, int in_channel, OutputSet *
   
   outputs->Clear();
 
-  outputs->AddRange( out_port, vcBegin, vcEnd );
+  srand(time(NULL));
+  int numm = (rand() % 101);
+ // if ( numm > 51)
+	  outputs->AddRange( out_port, vcBegin, vcEnd );
+ // else	  outputs->AddRange( out_port2, vcBegin, vcEnd );
+
 }
 
 //=============================================================
