@@ -3,16 +3,16 @@
 /*
  Copyright (c) 2007-2015, Trustees of The Leland Stanford Junior University
  All rights reserved.
-
+ 
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
-
+ 
  Redistributions of source code must retain the above copyright notice, this 
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
  other materials provided with the distribution.
-
+ 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
@@ -23,7 +23,7 @@
  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ */
 
 /*kn.cpp
  *
@@ -39,336 +39,377 @@
 #include "kncube.hpp"
 #include "random_utils.hpp"
 #include "misc_utils.hpp"
- //#include "iq_router.hpp"
+//#include "iq_router.hpp"
 
 
 KNCube::KNCube( const Configuration &config, const string & name, bool mesh ) :
 Network( config, name )
 {
-  _mesh = mesh;
-
-  _ComputeSize( config );
-  _Alloc( );
-  _BuildNet( config );
+    _mesh = mesh;
+    
+    _ComputeSize( config );
+    _Alloc( );
+    _BuildNet( config );
 }
-
 void KNCube::_ComputeSize( const Configuration &config )
 {
-  _k = config.GetInt( "k" );
-  _n = config.GetInt( "n" );
-
-  gK = _k; gN = _n;
-  _size     = powi( _k, _n );
-  _channels = 2*2*_n*_size;
-
-  _nodes = _size;
+    _k = config.GetInt( "k" );
+    _n = config.GetInt( "n" );
+    _num_l = config.GetInt("num_l");
+    //  cout<<"number of links="<<_num_l<<"\n";
+    gK = _k; gN = _n; gnum_l=_num_l;
+    _size     = powi( _k, _n );
+    _channels = _num_l*2*_n*_size;
+    
+    _nodes = _size;
 }
 
 void KNCube::RegisterRoutingFunctions() {
-
+    
 }
 void KNCube::_BuildNet( const Configuration &config )
 {
-  int left_node;
-  int right_node;
-
-  int right_input0;
-  int left_input0;
-  int right_input1;
-  int left_input1;
-  int right_output0;
-  int left_output0;
-  int right_output1;
-  int left_output1;
-
-  ostringstream router_name;
-
-  //latency type, noc or conventional network
-  bool use_noc_latency;
-  use_noc_latency = (config.GetInt("use_noc_latency")==1);
-  
-  for ( int node = 0; node < _size; ++node ) {
-
-    router_name << "router";
+    int left_node;
+    int right_node;    
+    ostringstream router_name;
+    //latency type, noc or conventional network
+    bool use_noc_latency;
+    use_noc_latency = (config.GetInt("use_noc_latency")==1);
     
-    if ( _k > 1 ) {
-      for ( int dim_offset = _size / _k; dim_offset >= 1; dim_offset /= _k ) {
-	router_name << "_" << ( node / dim_offset ) % _k;
-      }
+    for ( int node = 0; node < _size; ++node ) {
+        
+        router_name << "router";
+        
+        if ( _k > 1 ) {
+            for ( int dim_offset = _size / _k; dim_offset >= 1; dim_offset /= _k ) {
+                router_name << "_" << ( node / dim_offset ) % _k;
+            }
+        }
+        
+        _routers[node] = Router::NewRouter( config, this, router_name.str( ), 
+                node, _num_l*2*_n + 1, _num_l*2*_n + 1 );
+        _timed_modules.push_back(_routers[node]);
+        
+        router_name.str("");
+        
+        for ( int dim = 0; dim < _n; ++dim ) {
+            
+            //find the neighbor 
+            left_node  = _LeftNode( node, dim );
+            right_node = _RightNode( node, dim );
+            
+            //
+            // Current (N)ode
+            // (L)eft node
+            // (R)ight node
+            //
+            //   L--->N<---R
+            //   L<---N--->R
+            //
+            
+            // torus channel is longer due to wrap around
+            int latency = _mesh ? 1 : 2 ;
+            
+            //get the input channel number
+            for ( int i=0; i<_num_l; ++i){
+                int  my_right_input= _LeftChannel(right_node,dim,i);
+                int  my_left_input=_RightChannel(left_node,dim,i);
+                
+                cout<<"my_right input"<<i<<"="<<my_right_input<<"\n";
+                cout<<"my_left input"<<i<<"="<<my_left_input<<"\n";
+                
+                //add the input channel
+                _routers[node]->AddInputChannel( _chan[my_right_input], _chan_cred[my_right_input] );
+                _routers[node]->AddInputChannel( _chan[my_left_input], _chan_cred[my_left_input] );
+                //set input channel latency
+                if(use_noc_latency){
+                    _chan[my_right_input]->SetLatency( latency );
+                    _chan[my_left_input]->SetLatency( latency );
+                    _chan_cred[my_right_input]->SetLatency( latency );
+                    _chan_cred[my_left_input]->SetLatency( latency );
+                }else{
+                    _chan[my_right_input]->SetLatency( 1 );
+                    _chan[my_left_input]->SetLatency( 1 );
+                }
+                //get the output channel number
+                int my_left_output = _LeftChannel( node, dim, i );
+                int my_right_output =_RightChannel( node, dim, i );
+                
+                
+                cout<<"my_right output"<<i<<"="<<my_right_output<<"\n";
+                cout<<"my_left output"<<i<<"="<<my_left_output<<"\n";
+                cout<<"node="<<node<<"\n";
+                cout<<"dimension="<<dim<<"\n\n";
+                
+                
+                //add the output channel
+                _routers[node]->AddOutputChannel( _chan[my_right_output], _chan_cred[my_right_output] );
+                _routers[node]->AddOutputChannel( _chan[my_left_output], _chan_cred[my_left_output] );
+                //set output channel latency
+                if(use_noc_latency){
+	    	    _chan[my_left_output]->SetLatency( latency );
+	    	    _chan[my_right_output]->SetLatency( latency );
+	    	    _chan_cred[my_left_output]->SetLatency( latency );
+	    	    _chan_cred[my_right_output]->SetLatency( latency );
+                }else{
+	   	    _chan[my_left_output]->SetLatency( 1 );
+	  	    _chan[my_right_output]->SetLatency( 1 );
+                    _chan_cred[my_right_output]->SetLatency( 1 );
+                    _chan_cred[my_left_output]->SetLatency( 1 );
+                    
+                }
+                
+            }
+            
+        } // end of first for loop
+        //injection and ejection channel, always 1 latency
+        _routers[node]->AddInputChannel( _inject[node], _inject_cred[node] );
+        _routers[node]->AddOutputChannel( _eject[node], _eject_cred[node] );
+        _inject[node]->SetLatency( 1 );
+        _eject[node]->SetLatency( 1 );
     }
-
-    _routers[node] = Router::NewRouter( config, this, router_name.str( ), 
-					node, 2*2*_n + 1, 2*2*_n + 1 );
-    _timed_modules.push_back(_routers[node]);
-
-    router_name.str("");
-
-    for ( int dim = 0; dim < _n; ++dim ) {
-
-      //find the neighbor 
-      left_node  = _LeftNode( node, dim );
-      right_node = _RightNode( node, dim );
-
-      //
-      // Current (N)ode
-      // (L)eft node
-      // (R)ight node
-      //
-      //   L--->N<---R
-      //   L<---N--->R
-      //
-
-      // torus channel is longer due to wrap around
-      int latency = _mesh ? 1 : 2 ;
-
-      //get the input channel number
-      right_input0 = _LeftChannel0( right_node, dim );
-      right_input1 = _LeftChannel1( right_node, dim );
-      left_input0  = _RightChannel0( left_node, dim );
-      left_input1  = _RightChannel1( left_node, dim );
-      cout<<"right input0="<<right_input0<<"\n";
-      cout<<"left input0="<<left_input0<<"\n";
-      cout<<"right input1="<<right_input1<<"\n";
-      cout<<"left input1="<<left_input1<<"\n";
-      //add the input channel
-      _routers[node]->AddInputChannel( _chan[right_input0], _chan_cred[right_input0] );
-      _routers[node]->AddInputChannel( _chan[right_input1], _chan_cred[right_input1] );
-      _routers[node]->AddInputChannel( _chan[left_input0], _chan_cred[left_input0] );
-      _routers[node]->AddInputChannel( _chan[left_input1], _chan_cred[left_input1] );
-      //set input channel latency
-      if(use_noc_latency){
-	_chan[right_input0]->SetLatency( latency );
-	_chan[left_input0]->SetLatency( latency );
-	_chan_cred[right_input0]->SetLatency( latency );
-	_chan_cred[left_input0]->SetLatency( latency );
-	_chan[right_input1]->SetLatency( latency );
-	_chan[left_input1]->SetLatency( latency );
-	_chan_cred[right_input1]->SetLatency( latency );
-	_chan_cred[left_input1]->SetLatency( latency );
-      } else {
-	_chan[left_input0]->SetLatency( 1 );
-	_chan_cred[right_input0]->SetLatency( 1 );
-	_chan_cred[left_input0]->SetLatency( 1 );
-	_chan[right_input0]->SetLatency( 1 );
-	_chan[left_input1]->SetLatency( 1 );
-	_chan_cred[right_input1]->SetLatency( 1 );
-	_chan_cred[left_input1]->SetLatency( 1 );
-	_chan[right_input1]->SetLatency( 1 );
-      }
-      //get the output channel number
-      right_output0 = _RightChannel0( node, dim );
-      left_output0  = _LeftChannel0( node, dim );
-      right_output1 = _RightChannel1( node, dim );
-      left_output1  = _LeftChannel1( node, dim );
-      cout<<"right output0="<<right_output0<<"\n";
-      cout<<"left output0="<<left_output0<<"\n";
-      cout<<"right output1="<<right_output1<<"\n";
-      cout<<"left output1="<<left_output1<<"\n";
-      cout<<"node="<<node<<"\n";
-      cout<<"dimension="<<dim<<"\n\n";
-      //add the output channel
-      _routers[node]->AddOutputChannel( _chan[right_output0], _chan_cred[right_output0] );
-      _routers[node]->AddOutputChannel( _chan[right_output1], _chan_cred[right_output1] );
-      _routers[node]->AddOutputChannel( _chan[left_output0], _chan_cred[left_output0] );
-      _routers[node]->AddOutputChannel( _chan[left_output1], _chan_cred[left_output1] );
-      //set output channel latency
-      if(use_noc_latency){
-	_chan[right_output0]->SetLatency( latency );
-	_chan[left_output0]->SetLatency( latency );
-	_chan_cred[right_output0]->SetLatency( latency );
-	_chan_cred[left_output0]->SetLatency( latency );
-	_chan[right_output1]->SetLatency( latency );
-	_chan[left_output1]->SetLatency( latency );
-	_chan_cred[right_output1]->SetLatency( latency );
-	_chan_cred[left_output1]->SetLatency( latency );
-      } else {
-	_chan[right_output0]->SetLatency( 1 );
-	_chan[left_output0]->SetLatency( 1 );
-	_chan_cred[right_output0]->SetLatency( 1 );
-	_chan_cred[left_output0]->SetLatency( 1 );
-	_chan[right_output1]->SetLatency( 1 );
-	_chan[left_output1]->SetLatency( 1 );
-	_chan_cred[right_output1]->SetLatency( 1 );
-	_chan_cred[left_output1]->SetLatency( 1 );
-
-      }
-    }
-    //injection and ejection channel, always 1 latency
-    _routers[node]->AddInputChannel( _inject[node], _inject_cred[node] );
-    _routers[node]->AddOutputChannel( _eject[node], _eject_cred[node] );
-    _inject[node]->SetLatency( 1 );
-    _eject[node]->SetLatency( 1 );
-  }
 }
-
-int KNCube::_LeftChannel0( int node, int dim )
+int KNCube::_LeftChannel( int node, int dim, int number )
 {
-  // The base channel for a node is 2*_n*node
-  int base = 2*2*_n*node;
-  // The offset for a left channel is 2*dim + 1
-  int off  = 2*2*dim+2 ;
-
-  return ( base + off );
+    // The base channel for a node is 2*_n*node
+    int base = _num_l*2*_n*node;
+    // The offset for a left channel is 2*dim + 1
+    int off  = _num_l*2*dim+number+_num_l ;
+    
+    return ( base + off );
 }
-int KNCube::_LeftChannel1( int node, int dim )
+int KNCube::_RightChannel( int node, int dim, int number )
 {
-  // The base channel for a node is 2*_n*node
-  int base = 2*2*_n*node;
-  // The offset for a left channel is 2*dim + 1
-  int off  = 2*2*dim + 3;
+    // The base channel for a node is 2*_n*node
+    int base = _num_l*2*_n*node;
+    // The offset for a right channel is 2*dim
+    int off  = _num_l*2*dim+number;
+    return ( base + off );
+}
+////////////////////////////////////////////////// begin 3to3
+//int KNCube::_LeftChannel1( int node, int dim )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 3*2*_n*node;
+//  // The offset for a left channel is 2*dim + 1
+//  int off  = 3*2*dim+4 ;
+//
+//  return ( base + off );
+//}
+//
+//int KNCube::_LeftChannel2( int node, int dim )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 3*2*_n*node;
+//  // The offset for a left channel is 2*dim + 1
+//  int off  = 3*2*dim+5 ;
+//
+//  return ( base + off );
+//}
+//////////////////////////////////////////////end 3to3
+//int KNCube::_RightChannel0( int node, int dim, int number )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 2*2*_n*node;
+//  // The offset for a right channel is 2*dim
+//  int off  = 2*2*dim;
+//  return ( base + off );
+//}
+//int KNCube::_RightChannel1( int node, int dim, int number )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 2*2*_n*node;
+//  // The offset for a right channel is 2*dim
+//  int off  = 2*2*dim+1;
+//  return ( base + off );
+//}
+//int KNCube::_RightChannel2( int node, int dim, int number )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 2*2*_n*node;
+//  // The offset for a right channel is 2*dim
+//  int off  = 2*2*dim+2;
+//  return ( base + off );
+//}
+//
 
-  return ( base + off );
-}
 
-int KNCube::_RightChannel0( int node, int dim )
-{
-  // The base channel for a node is 2*_n*node
-  int base = 2*2*_n*node;
-  // The offset for a right channel is 2*dim
-  int off  = 2*2*dim;
-  return ( base + off );
-}
-int KNCube::_RightChannel1( int node, int dim )
-{
-  // The base channel for a node is 2*_n*node
-  int base = 2*2*_n*node;
-  // The offset for a right channel is 2*dim 
-  int off  = 2*2*dim+1;
-  return ( base + off );
-}
+
+
+
+
+
+
+
+//int KNCube::_LeftChannel0( int node, int dim )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 2*2*_n*node;
+//  // The offset for a left channel is 2*dim + 1
+//  int off  = 2*2*dim+2 ;
+//
+//  return ( base + off );
+//}
+//int KNCube::_LeftChannel1( int node, int dim )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 2*2*_n*node;
+//  // The offset for a left channel is 2*dim + 1
+//  int off  = 2*2*dim + 3;
+//
+//  return ( base + off );
+//}
+//
+//int KNCube::_RightChannel0( int node, int dim )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 2*2*_n*node;
+//  // The offset for a right channel is 2*dim
+//  int off  = 2*2*dim;
+//  return ( base + off );
+//}
+//int KNCube::_RightChannel1( int node, int dim )
+//{
+//  // The base channel for a node is 2*_n*node
+//  int base = 2*2*_n*node;
+//  // The offset for a right channel is 2*dim
+//  int off  = 2*2*dim+1;
+//  return ( base + off );
+//}
+
 int KNCube::_LeftNode( int node, int dim )
 {
-  int k_to_dim = powi( _k, dim );
-  int loc_in_dim = ( node / k_to_dim ) % _k;
-  int left_node;
-  // if at the left edge of the dimension, wraparound
-  if ( loc_in_dim == 0 ) {
-    left_node = node + (_k-1)*k_to_dim;
-  } else {
-    left_node = node - k_to_dim;
-  }
-
-  return left_node;
+    int k_to_dim = powi( _k, dim );
+    int loc_in_dim = ( node / k_to_dim ) % _k;
+    int left_node;
+    // if at the left edge of the dimension, wraparound
+    if ( loc_in_dim == 0 ) {
+        left_node = node + (_k-1)*k_to_dim;
+    } else {
+        left_node = node - k_to_dim;
+    }
+    
+    return left_node;
 }
 
 int KNCube::_RightNode( int node, int dim )
 {
-  int k_to_dim = powi( _k, dim );
-  int loc_in_dim = ( node / k_to_dim ) % _k;
-  int right_node;
-  // if at the right edge of the dimension, wraparound
-  if ( loc_in_dim == ( _k-1 ) ) {
-    right_node = node - (_k-1)*k_to_dim;
-  } else {
-    right_node = node + k_to_dim;
-  }
-
-  return right_node;
+    int k_to_dim = powi( _k, dim );
+    int loc_in_dim = ( node / k_to_dim ) % _k;
+    int right_node;
+    // if at the right edge of the dimension, wraparound
+    if ( loc_in_dim == ( _k-1 ) ) {
+        right_node = node - (_k-1)*k_to_dim;
+    } else {
+        right_node = node + k_to_dim;
+    }
+    
+    return right_node;
 }
 
 int KNCube::GetN( ) const
 {
-  return _n;
+    return _n;
 }
 
 int KNCube::GetK( ) const
 {
-  return _k;
+    return _k;
 }
 
 /*legacy, not sure how this fits into the new scheme of things*/
 void KNCube::InsertRandomFaults( const Configuration &config )
 {
-  int num_fails = config.GetInt( "link_failures" );
-  
-  if ( _size && num_fails ) {
-    vector<long> save_x;
-    vector<double> save_u;
-    SaveRandomState( save_x, save_u );
-    int fail_seed;
-    if ( config.GetStr( "fail_seed" ) == "time" ) {
-      fail_seed = int( time( NULL ) );
-      cout << "SEED: fail_seed=" << fail_seed << endl;
-    } else {
-      fail_seed = config.GetInt( "fail_seed" );
+    int num_fails = config.GetInt( "link_failures" );
+    
+    if ( _size && num_fails ) {
+        vector<long> save_x;
+        vector<double> save_u;
+        SaveRandomState( save_x, save_u );
+        int fail_seed;
+        if ( config.GetStr( "fail_seed" ) == "time" ) {
+            fail_seed = int( time( NULL ) );
+            cout << "SEED: fail_seed=" << fail_seed << endl;
+        } else {
+            fail_seed = config.GetInt( "fail_seed" );
+        }
+        RandomSeed( fail_seed );
+        
+        vector<bool> fail_nodes(_size);
+        
+        for ( int i = 0; i < _size; ++i ) {
+            int node = i;
+            
+            // edge test
+            bool edge = false;
+            for ( int n = 0; n < _n; ++n ) {
+                if ( ( ( node % _k ) == 0 ) ||
+                        ( ( node % _k ) == _k - 1 ) ) {
+                    edge = true;
+                }
+                node /= _k;
+            }
+            
+            if ( edge ) {
+                fail_nodes[i] = true;
+            } else {
+                fail_nodes[i] = false;
+            }
+        }
+        
+        for ( int i = 0; i < num_fails; ++i ) {
+            int j = RandomInt( _size - 1 );
+            bool available = false;
+            int node = -1;
+            int chan = -1;
+            int t;
+            
+            for ( t = 0; ( t < _size ) && (!available); ++t ) {
+                int node = ( j + t ) % _size;
+                
+                if ( !fail_nodes[node] ) {
+                    // check neighbors
+                    int c = RandomInt( 2*_n - 1 );
+                    
+                    for ( int n = 0; ( n < 2*_n ) && (!available); ++n ) {
+                        chan = ( n + c ) % 2*_n;
+                        
+                        if ( chan % 1 ) {
+                            available = fail_nodes[_LeftNode( node, chan/2 )];
+                        } else {
+                            available = fail_nodes[_RightNode( node, chan/2 )];
+                        }
+                    }
+                }
+                
+                if ( !available ) {
+                    cout << "skipping " << node << endl;
+                }
+            }
+            
+            if ( t == _size ) {
+                Error( "Could not find another possible fault channel" );
+            }
+            
+            assert(node != -1);
+            assert(chan != -1);
+            OutChannelFault( node, chan );
+            fail_nodes[node] = true;
+            
+            for ( int n = 0; ( n < _n ) && available ; ++n ) {
+                fail_nodes[_LeftNode( node, n )]  = true;
+                fail_nodes[_RightNode( node, n )] = true;
+            }
+            
+            cout << "failure at node " << node << ", channel " 
+                    << chan << endl;
+        }
+        
+        RestoreRandomState( save_x, save_u );
     }
-    RandomSeed( fail_seed );
-
-    vector<bool> fail_nodes(_size);
-
-    for ( int i = 0; i < _size; ++i ) {
-      int node = i;
-
-      // edge test
-      bool edge = false;
-      for ( int n = 0; n < _n; ++n ) {
-	if ( ( ( node % _k ) == 0 ) ||
-	     ( ( node % _k ) == _k - 1 ) ) {
-	  edge = true;
-	}
-	node /= _k;
-      }
-
-      if ( edge ) {
-	fail_nodes[i] = true;
-      } else {
-	fail_nodes[i] = false;
-      }
-    }
-
-    for ( int i = 0; i < num_fails; ++i ) {
-      int j = RandomInt( _size - 1 );
-      bool available = false;
-      int node = -1;
-      int chan = -1;
-      int t;
-
-      for ( t = 0; ( t < _size ) && (!available); ++t ) {
-	int node = ( j + t ) % _size;
-       
-	if ( !fail_nodes[node] ) {
-	  // check neighbors
-	  int c = RandomInt( 2*_n - 1 );
-
-	  for ( int n = 0; ( n < 2*_n ) && (!available); ++n ) {
-	    chan = ( n + c ) % 2*_n;
-
-	    if ( chan % 1 ) {
-	      available = fail_nodes[_LeftNode( node, chan/2 )];
-	    } else {
-	      available = fail_nodes[_RightNode( node, chan/2 )];
-	    }
-	  }
-	}
-	
-	if ( !available ) {
-	  cout << "skipping " << node << endl;
-	}
-      }
-
-      if ( t == _size ) {
-	Error( "Could not find another possible fault channel" );
-      }
-
-      assert(node != -1);
-      assert(chan != -1);
-      OutChannelFault( node, chan );
-      fail_nodes[node] = true;
-
-      for ( int n = 0; ( n < _n ) && available ; ++n ) {
-	fail_nodes[_LeftNode( node, n )]  = true;
-	fail_nodes[_RightNode( node, n )] = true;
-      }
-
-      cout << "failure at node " << node << ", channel " 
-	   << chan << endl;
-    }
-
-    RestoreRandomState( save_x, save_u );
-  }
 }
 
 double KNCube::Capacity( ) const
 {
-  return (double)_k / ( _mesh ? 8.0 : 4.0 );
+    return (double)_k / ( _mesh ? 8.0 : 4.0 );
 }

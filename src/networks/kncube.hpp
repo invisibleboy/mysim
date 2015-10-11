@@ -33,17 +33,21 @@
 class KNCube : public Network {
 
   bool _mesh;
-
   int _k;
   int _n;
+  int _num_l;
 
   void _ComputeSize( const Configuration &config );
   void _BuildNet( const Configuration &config );
 
-  int _LeftChannel0( int node, int dim );
-  int _LeftChannel1( int node, int dim );
-  int _RightChannel0( int node, int dim );
-  int _RightChannel1( int node, int dim );
+  int _LeftChannel( int node, int dim, int number );
+//  int _LeftChannel1( int node, int dim );
+//  int _LeftChannel2( int node, int dim );
+
+  int _RightChannel( int node, int dim, int number );
+//  int _RightChannel1( int node, int dim );
+//  int _RightChannel2( int node, int dim );
+
   int _LeftNode( int node, int dim );
   int _RightNode( int node, int dim );
 

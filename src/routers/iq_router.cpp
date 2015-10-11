@@ -1357,7 +1357,7 @@ void IQRouter::_SWAllocEvaluate( )
 		Flit const * const f = cur_buf->FrontFlit(vc);
 		assert(f);
 		assert(f->vc == vc);
-
+//		cout<<f->id<<" "<<f->head<<" "<<f->src<<" "<<f->dest<< endl;
 		if(f->watch) {
 			*gWatchOut << GetSimTime() << " | " << FullName() << " | "
 					<< "Beginning switch allocation for VC " << vc
@@ -2175,7 +2175,8 @@ void IQRouter::_SwitchUpdate( )
 		if((time < 0) || (GetSimTime() < time)) {
 			break;
 		}
-		assert(GetSimTime() == time);
+		time_t ttt=GetSimTime();
+	//	assert(GetSimTime() == time);
 
 		Flit * const f = item.second.first;
 		assert(f);

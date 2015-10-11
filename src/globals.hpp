@@ -45,6 +45,7 @@ extern int gN;
 extern int gC;
 
 extern int gNodes;
+extern int gnum_l;
 
 extern bool gTrace;
 

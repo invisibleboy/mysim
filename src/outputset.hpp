@@ -58,7 +58,7 @@ private:
 
 inline bool operator<(const OutputSet::sSetElement & se1, 
 	       const OutputSet::sSetElement & se2) {
-  return se1.pri > se2.pri; // higher priorities first!
+  return se1.output_port > se2.output_port; // higher priorities first!
 }
 
 #endif

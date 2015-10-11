@@ -82,7 +82,7 @@ bool gPrintActivity;
 int gK;//radix
 int gN;//dimension
 int gC;//concentration
-
+int gnum_l;
 int gNodes;
 
 //generate nocviewer trace
