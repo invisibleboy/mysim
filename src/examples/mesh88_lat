@@ -73,7 +73,8 @@ packet_size = 4;
 
 // Simulation
 sim_type = latency;
-//watch_out = /home/farrokh/monitor.txt;
+watch_out = monitor.txt;
+watch_file = examples/watch;
 
 latency_thres=5000.0;
 injection_rate = 0.05;

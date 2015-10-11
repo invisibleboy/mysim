@@ -113,48 +113,89 @@ void KNCube::_BuildNet( const Configuration &config )
             //get the input channel number
             for ( int i=0; i<_num_l; ++i){
                 int  my_right_input= _LeftChannel(right_node,dim,i);
-                int  my_left_input=_RightChannel(left_node,dim,i);
+
                 
                 cout<<"my_right input"<<i<<"="<<my_right_input<<"\n";
-                cout<<"my_left input"<<i<<"="<<my_left_input<<"\n";
+
                 
                 //add the input channel
                 _routers[node]->AddInputChannel( _chan[my_right_input], _chan_cred[my_right_input] );
-                _routers[node]->AddInputChannel( _chan[my_left_input], _chan_cred[my_left_input] );
+   
                 //set input channel latency
                 if(use_noc_latency){
                     _chan[my_right_input]->SetLatency( latency );
-                    _chan[my_left_input]->SetLatency( latency );
                     _chan_cred[my_right_input]->SetLatency( latency );
-                    _chan_cred[my_left_input]->SetLatency( latency );
                 }else{
                     _chan[my_right_input]->SetLatency( 1 );
-                    _chan[my_left_input]->SetLatency( 1 );
                 }
                 //get the output channel number
-                int my_left_output = _LeftChannel( node, dim, i );
+ 
                 int my_right_output =_RightChannel( node, dim, i );
                 
                 
                 cout<<"my_right output"<<i<<"="<<my_right_output<<"\n";
-                cout<<"my_left output"<<i<<"="<<my_left_output<<"\n";
                 cout<<"node="<<node<<"\n";
                 cout<<"dimension="<<dim<<"\n\n";
                 
                 
                 //add the output channel
                 _routers[node]->AddOutputChannel( _chan[my_right_output], _chan_cred[my_right_output] );
+                //set output channel latency
+                if(use_noc_latency){
+	    	    _chan[my_right_output]->SetLatency( latency );
+	    	    _chan_cred[my_right_output]->SetLatency( latency );
+                }else{
+	   	
+                   _chan[my_right_output]->SetLatency( 1 );
+                    _chan_cred[my_right_output]->SetLatency( 1 );
+                    
+                }
+                
+            }
+            for ( int i=0; i<_num_l; ++i){
+                
+                int  my_left_input=_RightChannel(left_node,dim,i);
+                
+                
+                cout<<"my_left input"<<i<<"="<<my_left_input<<"\n";
+                
+                //add the input channel
+                
+                _routers[node]->AddInputChannel( _chan[my_left_input], _chan_cred[my_left_input] );
+                //set input channel latency
+                if(use_noc_latency){
+                    
+                    _chan[my_left_input]->SetLatency( latency );
+                   
+                    _chan_cred[my_left_input]->SetLatency( latency );
+                }else{
+                   
+                    _chan[my_left_input]->SetLatency( 1 );
+                }
+                //get the output channel number
+                int my_left_output = _LeftChannel( node, dim, i );
+                
+                
+                
+                
+                cout<<"my_left output"<<i<<"="<<my_left_output<<"\n";
+                cout<<"node="<<node<<"\n";
+                cout<<"dimension="<<dim<<"\n\n";
+                
+                
+                //add the output channel
+                
                 _routers[node]->AddOutputChannel( _chan[my_left_output], _chan_cred[my_left_output] );
                 //set output channel latency
                 if(use_noc_latency){
 	    	    _chan[my_left_output]->SetLatency( latency );
-	    	    _chan[my_right_output]->SetLatency( latency );
+	    	   
 	    	    _chan_cred[my_left_output]->SetLatency( latency );
-	    	    _chan_cred[my_right_output]->SetLatency( latency );
+	    	    
                 }else{
 	   	    _chan[my_left_output]->SetLatency( 1 );
-	  	    _chan[my_right_output]->SetLatency( 1 );
-                    _chan_cred[my_right_output]->SetLatency( 1 );
+	  	
+                 
                     _chan_cred[my_left_output]->SetLatency( 1 );
                     
                 }
